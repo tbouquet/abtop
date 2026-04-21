@@ -1,5 +1,5 @@
 use super::process::{self, ProcInfo};
-use crate::model::{AgentSession, ChildProcess, SessionFile, SessionStatus, SubAgent};
+use crate::model::{AgentSession, ChildProcess, FileAccess, FileOp, SessionFile, SessionStatus, SubAgent};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
@@ -324,6 +324,10 @@ impl ClaudeCollector {
                         let remaining = 500 - prev.tool_calls.len();
                         prev.tool_calls.extend(delta.tool_calls.into_iter().take(remaining));
                     }
+                    if prev.file_accesses.len() < 1000 {
+                        let remaining = 1000 - prev.file_accesses.len();
+                        prev.file_accesses.extend(delta.file_accesses.into_iter().take(remaining));
+                    }
                     prev.last_assistant_ts_ms = delta.last_assistant_ts_ms;
                     if prev.initial_prompt.is_empty() && !delta.initial_prompt.is_empty() {
                         prev.initial_prompt = delta.initial_prompt;
@@ -358,6 +362,7 @@ impl ClaudeCollector {
             initial_prompt: String::new(),
             first_assistant_text: String::new(),
             tool_calls: Vec::new(), last_assistant_ts_ms: 0,
+            file_accesses: Vec::new(),
         };
         let cached = self
             .transcript_cache
@@ -382,6 +387,7 @@ impl ClaudeCollector {
         let initial_prompt = cached.initial_prompt.clone();
         let first_assistant_text = cached.first_assistant_text.clone();
         let tool_calls = cached.tool_calls.clone();
+        let file_accesses = cached.file_accesses.clone();
 
         if !pid_alive {
             return None;
@@ -506,6 +512,7 @@ impl ClaudeCollector {
             initial_prompt,
             first_assistant_text,
             tool_calls,
+            file_accesses,
         })
     }
 
@@ -877,6 +884,8 @@ struct TranscriptResult {
     tool_calls: Vec<crate::model::ToolCall>,
     /// Timestamp of the last assistant turn (epoch ms), used to compute tool duration.
     last_assistant_ts_ms: u64,
+    /// File access audit log from Read/Write/Edit tool_use entries.
+    file_accesses: Vec<FileAccess>,
 }
 
 /// Check if a path is a symlink without following it.
@@ -928,6 +937,7 @@ fn parse_transcript(path: &Path, from_offset: u64) -> TranscriptResult {
         first_assistant_text: String::new(),
         tool_calls: Vec::new(),
         last_assistant_ts_ms: 0,
+        file_accesses: Vec::new(),
     };
 
     let file = match fs::File::open(path) {
@@ -1115,6 +1125,27 @@ fn parse_transcript(path: &Path, from_offset: u64) -> TranscriptResult {
                                                     arg: truncate(&arg, 40),
                                                     duration_ms: 0, // filled on next user turn
                                                 });
+                                            }
+                                            // Extract file access for Read/Write/Edit
+                                            let file_op = match tool {
+                                                "Read" => Some(FileOp::Read),
+                                                "Write" => Some(FileOp::Write),
+                                                "Edit" => Some(FileOp::Edit),
+                                                _ => None,
+                                            };
+                                            if let Some(op) = file_op {
+                                                if let Some(fp) = item.get("input")
+                                                    .and_then(|i| i.get("file_path"))
+                                                    .and_then(|f| f.as_str())
+                                                {
+                                                    if result.file_accesses.len() < 1000 {
+                                                        result.file_accesses.push(FileAccess {
+                                                            path: fp.to_string(),
+                                                            operation: op,
+                                                            turn_index: result.turn_count,
+                                                        });
+                                                    }
+                                                }
                                             }
                                         }
                                     }

@@ -25,7 +25,9 @@ pub(crate) fn draw_sessions_panel(f: &mut Frame, app: &App, area: Rect, theme: &
         let base = 2u16;
         if app.tree_view { base + app.sessions[i].subagents.len() as u16 } else { base }
     }).sum();
-    let detail_reserve: u16 = if app.show_timeline {
+    let has_file_audit = app.show_file_audit && app.sessions.get(app.selected)
+        .is_some_and(|s| !s.file_accesses.is_empty());
+    let detail_reserve: u16 = if app.show_timeline || has_file_audit {
         (inner.height * 2 / 3).min(inner.height.saturating_sub(5))
     } else {
         10.min(inner.height / 2)
@@ -383,6 +385,7 @@ pub(crate) fn draw_sessions_panel(f: &mut Frame, app: &App, area: Rect, theme: &
         let has_children = !session.children.is_empty();
         let has_subagents = !session.subagents.is_empty();
         let has_timeline = app.show_timeline && !session.tool_calls.is_empty();
+        let has_file_audit = app.show_file_audit && !session.file_accesses.is_empty();
 
         // Always show SESSION header (task) at top, then children/subagents/timeline below
         let session_header_h: u16 = {
@@ -390,7 +393,7 @@ pub(crate) fn draw_sessions_panel(f: &mut Frame, app: &App, area: Rect, theme: &
             if !session.initial_prompt.is_empty() { h += 1; }
             h
         };
-        let (header_area, lower_area) = if has_timeline || has_children || has_subagents {
+        let (header_area, lower_area) = if has_timeline || has_file_audit || has_children || has_subagents {
             let parts = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
@@ -425,7 +428,9 @@ pub(crate) fn draw_sessions_panel(f: &mut Frame, app: &App, area: Rect, theme: &
 
         // Timeline OR Children + Subagents below session header
         if let Some(lower) = lower_area {
-            if has_timeline {
+            if has_file_audit {
+                draw_file_audit(f, session, lower, theme);
+            } else if has_timeline {
                 draw_timeline(f, session, lower, theme, app.timeline_scroll);
             } else if has_children || has_subagents {
             let body_chunks = if has_children && has_subagents {
@@ -719,6 +724,54 @@ fn draw_timeline(
                 format!(" {:>6}{}", fmt_duration(tc.duration_ms), star),
                 Style::default().fg(if is_longest { theme.proc_misc } else { theme.graph_text }),
             ),
+        ]));
+    }
+
+    f.render_widget(Paragraph::new(lines), area);
+}
+
+fn draw_file_audit(
+    f: &mut Frame,
+    session: &crate::model::AgentSession,
+    area: Rect,
+    theme: &Theme,
+) {
+    use crate::model::FileOp;
+    use std::collections::HashSet;
+
+    let accesses = &session.file_accesses;
+    if accesses.is_empty() {
+        return;
+    }
+
+    let unique_files: HashSet<&str> = accesses.iter().map(|a| a.path.as_str()).collect();
+
+    let mut lines = Vec::new();
+    lines.push(Line::from(Span::styled(
+        format!(
+            " FILE AUDIT ({} accesses, {} unique files)",
+            accesses.len(),
+            unique_files.len()
+        ),
+        Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+    )));
+
+    let visible_rows = (area.height as usize).saturating_sub(1);
+    for access in accesses.iter().take(visible_rows) {
+        let (prefix, color) = match access.operation {
+            FileOp::Read => ("R", theme.session_id),
+            FileOp::Write => ("W", theme.cpu_box),
+            FileOp::Edit => ("E", theme.proc_misc),
+        };
+        let turn_label = format!("T{:<3}", access.turn_index);
+        let short_path = super::truncate_str(
+            &access.path,
+            (area.width as usize).saturating_sub(14),
+        );
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {} ", prefix), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("{} ", turn_label), Style::default().fg(theme.inactive_fg)),
+            Span::styled(short_path, Style::default().fg(theme.graph_text)),
         ]));
     }
 

@@ -74,6 +74,7 @@ pub struct App {
     pub filter_active: bool,
     pub show_timeline: bool,
     pub timeline_scroll: usize,
+    pub show_file_audit: bool,
 }
 
 impl App {
@@ -110,6 +111,7 @@ impl App {
             filter_active: false,
             show_timeline: false,
             timeline_scroll: 0,
+            show_file_audit: false,
         }
     }
 
@@ -160,6 +162,10 @@ impl App {
     pub fn toggle_timeline(&mut self) {
         self.show_timeline = !self.show_timeline;
         self.timeline_scroll = 0;
+    }
+
+    pub fn toggle_file_audit(&mut self) {
+        self.show_file_audit = !self.show_file_audit;
     }
 
     pub fn cycle_theme(&mut self) {

@@ -1,5 +1,5 @@
 use crate::app::App;
-use crate::model::{AgentSession, ChildProcess, OrphanPort, RateLimitInfo, SessionStatus, SubAgent, ToolCall};
+use crate::model::{AgentSession, ChildProcess, FileAccess, FileOp, OrphanPort, RateLimitInfo, SessionStatus, SubAgent, ToolCall};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn now_ms() -> u64 {
@@ -93,6 +93,18 @@ pub fn populate_demo(app: &mut App) {
 
             first_assistant_text: String::new(),
             initial_prompt: "Implement Stripe payment integration for checkout flow".into(),
+            file_accesses: vec![
+                FileAccess { path: "/Users/demo/webshop/src/checkout/mod.rs".into(), operation: FileOp::Read, turn_index: 1 },
+                FileAccess { path: "/Users/demo/webshop/Cargo.toml".into(), operation: FileOp::Read, turn_index: 1 },
+                FileAccess { path: "/Users/demo/webshop/src/checkout/payment.rs".into(), operation: FileOp::Edit, turn_index: 2 },
+                FileAccess { path: "/Users/demo/webshop/src/checkout/mod.rs".into(), operation: FileOp::Edit, turn_index: 2 },
+                FileAccess { path: "/Users/demo/webshop/src/checkout/stripe.rs".into(), operation: FileOp::Write, turn_index: 3 },
+                FileAccess { path: "/Users/demo/webshop/src/checkout/stripe.rs".into(), operation: FileOp::Edit, turn_index: 5 },
+                FileAccess { path: "/Users/demo/webshop/src/config.rs".into(), operation: FileOp::Read, turn_index: 6 },
+                FileAccess { path: "/Users/demo/webshop/src/config.rs".into(), operation: FileOp::Edit, turn_index: 6 },
+                FileAccess { path: "/Users/demo/webshop/src/checkout/payment.rs".into(), operation: FileOp::Edit, turn_index: 8 },
+                FileAccess { path: "/Users/demo/webshop/src/lib.rs".into(), operation: FileOp::Read, turn_index: 9 },
+            ],
             tool_calls: vec![
                 ToolCall { name: "Read".into(), arg: "src/checkout/mod.rs".into(), duration_ms: 85 },
                 ToolCall { name: "Read".into(), arg: "Cargo.toml".into(), duration_ms: 42 },
@@ -156,6 +168,7 @@ pub fn populate_demo(app: &mut App) {
 
             first_assistant_text: String::new(),
             initial_prompt: "Add batch inference endpoint with GPU scheduling".into(),
+            file_accesses: vec![],
             tool_calls: vec![],
         },
         AgentSession {
@@ -213,6 +226,7 @@ pub fn populate_demo(app: &mut App) {
 
             first_assistant_text: String::new(),
             initial_prompt: "Fix CORS headers and add rate limiting middleware".into(),
+            file_accesses: vec![],
             tool_calls: vec![
                 ToolCall { name: "Read".into(), arg: "src/server.ts".into(), duration_ms: 60 },
                 ToolCall { name: "Edit".into(), arg: "src/middleware/cors.ts".into(), duration_ms: 150 },
@@ -264,6 +278,7 @@ pub fn populate_demo(app: &mut App) {
 
             first_assistant_text: String::new(),
             initial_prompt: "Create interactive heatmap component with D3.js".into(),
+            file_accesses: vec![],
             tool_calls: vec![],
         },
     ];

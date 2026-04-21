@@ -49,6 +49,22 @@ pub struct SubAgent {
     pub tokens: u64,
 }
 
+/// File operation type for the audit log.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FileOp {
+    Read,
+    Write,
+    Edit,
+}
+
+/// A single file access recorded from a tool_use entry.
+#[derive(Debug, Clone)]
+pub struct FileAccess {
+    pub path: String,
+    pub operation: FileOp,
+    pub turn_index: u32,
+}
+
 /// A single tool invocation from a session transcript.
 #[derive(Debug, Clone)]
 pub struct ToolCall {
@@ -103,6 +119,8 @@ pub struct AgentSession {
     pub first_assistant_text: String,
     /// Timeline of tool calls extracted from transcript.
     pub tool_calls: Vec<ToolCall>,
+    /// File access audit log extracted from Read/Write/Edit tool_use entries.
+    pub file_accesses: Vec<FileAccess>,
 }
 
 impl AgentSession {
@@ -204,6 +222,7 @@ mod tests {
             initial_prompt: String::new(),
             first_assistant_text: String::new(),
             tool_calls: Vec::new(),
+            file_accesses: Vec::new(),
         }
     }
 
